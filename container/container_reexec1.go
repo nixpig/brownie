@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/containerd/cgroups"
+	"github.com/containerd/cgroups/v3/cgroup1"
 	"github.com/nixpig/brownie/container/filesystem"
 	"github.com/nixpig/brownie/internal/ipc"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -102,6 +104,59 @@ func (c *Container) Reexec1(log *zerolog.Logger) error {
 		"/proc/self/exe",
 		[]string{"reexec", "--stage", "2", c.ID()}...,
 	)
+	// -------------------------------
+	// TODO: apply cgroups
+	// -------------------------------
+
+	if c.Spec.Linux.CgroupsPath != "" &&
+		c.Spec.Linux.Resources != nil &&
+		cgroups.Mode() != cgroups.Unavailable {
+		staticPath := cgroup1.StaticPath(c.Spec.Linux.CgroupsPath)
+
+		// v2 available
+		// if cgroups.Mode() == cgroups.Unified {
+		// 	cm, err := cgroup2.NewSystemd(
+		// 		"/",
+		// 		fmt.Sprintf("%s.slice", c.ID()),
+		// 		c.PID(),
+		// 		&cgroup2.Resources{},
+		// 	)
+		// 	if err != nil {
+		// 		return fmt.Errorf("apply cgroupsv2 (id: %s): %w", c.ID(), err)
+		// 	}
+		// 	defer cm.Delete()
+		//
+		// } else {
+		// fallback to v1
+		cg, err := cgroup1.New(
+			staticPath,
+			c.Spec.Linux.Resources,
+		)
+		if err != nil {
+			log.Error().Err(err).Msg("apply cgroupsv1 (path: %s)")
+			return fmt.Errorf("apply cgroupsv1 (path: %s): %w", c.Spec.Linux.CgroupsPath, err)
+		}
+		// TODO: review whether this is right or whether the cgroup will get deleted before the container exits??
+		defer cg.Delete()
+
+		childPIDs, err := findChildPIDs(c.PID())
+		if err != nil {
+			return fmt.Errorf("find child pids: %w", err)
+		}
+
+		for _, cp := range childPIDs {
+			if err := cg.Add(cgroup1.Process{Pid: cp}); err != nil {
+				log.Error().Err(err).Int("pid", c.PID()).Msg("add pid to cgroup")
+				return fmt.Errorf("add pid to cgroup: %w", err)
+			}
+		}
+
+		// }
+	}
+
+	// -------------------------------
+	// -------------------------------
+	// -------------------------------
 
 	c.initIPC.ch <- []byte("ready")
 
