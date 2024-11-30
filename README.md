@@ -275,3 +275,10 @@ While this project was built entirely from scratch, inspiration was taken from e
 ## License
 
 [MIT](https://github.com/nixpig/brownie?tab=MIT-1-ov-file#readme)
+
+## Notes
+
+```
+$ sudo mkdir /sys/fs/cgroup/systemd
+$ sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
+```
