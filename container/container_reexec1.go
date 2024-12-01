@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 
@@ -109,22 +110,36 @@ func (c *Container) Reexec1(log *zerolog.Logger) error {
 	// TODO: apply cgroups
 	// -------------------------------
 
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	if c.Spec.Linux.CgroupsPath != "" &&
 		c.Spec.Linux.Resources != nil {
-		log.Info().Msg("about to load cgroup")
-		cg, err := cgroups.Load(c.Spec.Linux.CgroupsPath)
+		v2, _ := cgroups.IsCgroup2UnifiedMode()
+		log.Info().Bool("unified", v2).Msg("about to load cgroup")
+		// cg, err := cgroups.Load(c.Spec.Linux.CgroupsPath)
+		// if err != nil {
+		// 	log.Error().Err(err).Msg("failed to load cgroup; creating it...")
+		log.Info().Msg("about to create cgroup")
+		cg, err := cgroups.New(
+			c.Spec.Linux.CgroupsPath,
+			&configs.Resources{
+				CpuShares:    *c.Spec.Linux.Resources.CPU.Shares,
+				CpuQuota:     *c.Spec.Linux.Resources.CPU.Quota,
+				CpuBurst:     c.Spec.Linux.Resources.CPU.Burst,
+				CpuPeriod:    *c.Spec.Linux.Resources.CPU.Period,
+				CpuRtRuntime: *c.Spec.Linux.Resources.CPU.RealtimeRuntime,
+				CpuRtPeriod:  *c.Spec.Linux.Resources.CPU.RealtimePeriod,
+				CpusetCpus:   c.Spec.Linux.Resources.CPU.Cpus,
+				CpusetMems:   c.Spec.Linux.Resources.CPU.Mems,
+				CPUIdle:      c.Spec.Linux.Resources.CPU.Idle,
+			},
+		)
 		if err != nil {
-			log.Error().Err(err).Msg("failed to load cgroup; creating it...")
-			log.Info().Msg("about to create cgroup")
-			cg, err = cgroups.New(
-				filepath.Join(c.Spec.Linux.CgroupsPath),
-				&configs.Resources{},
-			)
-			if err != nil {
-				log.Error().Err(err).Msg("create cgroup")
-				return fmt.Errorf("create cgroup: %w", err)
-			}
+			log.Error().Err(err).Msg("create cgroup")
+			return fmt.Errorf("create cgroup: %w", err)
 		}
+		// }
 		log.Info().Msg("loaded cgroup")
 
 		defer cg.Delete()
@@ -133,8 +148,8 @@ func (c *Container) Reexec1(log *zerolog.Logger) error {
 			log.Error().Err(err).Msg("add pid to cgroup")
 			return fmt.Errorf("add pid to cgroup: %w", err)
 		}
-		log.Info().Msg("added pid to cgroup")
-
+		s, _ := cg.Stat()
+		log.Info().Any("stat", s).Int("pid", c.PID()).Msg("added pid to cgroup")
 	}
 
 	// -------------------------------
