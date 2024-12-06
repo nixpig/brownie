@@ -1,6 +1,7 @@
 package container
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -59,6 +60,10 @@ func (c *Container) Reexec1(log *zerolog.Logger) error {
 	} else {
 		// TODO: fall back to dup2 on stdin, stdout, stderr from c.Opts??
 		fmt.Println("TODO: implement fallback stdio??")
+		if err := terminal.ConnectStdio(0, 1, 2); err != nil {
+			log.Error().Err(err).Msg("failed to setup default stdio")
+			return fmt.Errorf("setup default stdio: %w", err)
+		}
 	}
 
 	cmd := exec.Command(
@@ -71,6 +76,11 @@ func (c *Container) Reexec1(log *zerolog.Logger) error {
 
 	log.Info().Msg("sending ready to channel")
 	c.initIPC.ch <- []byte("ready")
+
+	stdout := bytes.NewBuffer([]byte{})
+	cmd.Stdout = stdout
+	stderr := bytes.NewBuffer([]byte{})
+	cmd.Stderr = stderr
 
 	log.Info().Msg("waiting on start")
 	if err := ipc.WaitForMsg(listCh, "start", func() error {
@@ -102,8 +112,8 @@ func (c *Container) Reexec1(log *zerolog.Logger) error {
 		}
 
 		if err := cmd.Wait(); err != nil {
-			log.Error().Err(err).Msg("ERROR IN WAITING IN REEXEC1")
-			return fmt.Errorf("waiting for cmd wait in reexec: %w", err)
+			log.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("ERROR IN WAITING IN REEXEC1")
+			return fmt.Errorf("waiting for cmd wait in reexec (stdout: %s) (stderr: %s): %w", stdout.String(), stderr.String(), err)
 		}
 
 		return nil
