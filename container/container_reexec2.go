@@ -1,6 +1,7 @@
 package container
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -71,9 +72,10 @@ func (c *Container) Reexec2(log *zerolog.Logger) error {
 
 	if c.Spec.Process != nil {
 		if c.Spec.Process.Rlimits != nil {
-			if err := cgroups.SetRlimits(c.Spec.Process.Rlimits); err != nil {
-				log.Error().Err(err).Msg("set rlimits")
-				return err
+			for _, rl := range c.Spec.Process.Rlimits {
+				if _, ok := cgroups.Rlimits[rl.Type]; !ok {
+					return errors.New("unable to map rlimit to kernel interface")
+				}
 			}
 		}
 
