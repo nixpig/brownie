@@ -91,6 +91,7 @@ func (c *Container) Reexec1(log *zerolog.Logger) error {
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 
 	log.Info().Msg("waiting for start")
 	if err := ipc.WaitForMsg(listCh, "start", func() error {
