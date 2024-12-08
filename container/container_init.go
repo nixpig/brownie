@@ -60,6 +60,10 @@ func (c *Container) Init(reexec string, arg string, log *zerolog.Logger) error {
 		}
 
 		cwd, err := os.Getwd()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get cwd")
+			return fmt.Errorf("get cwd: %w", err)
+		}
 		log.Info().Str("cwd", cwd).Msg("INIT current working directory")
 
 		if err := os.Symlink(c.Opts.ConsoleSocket, "./console-socket"); err != nil {
