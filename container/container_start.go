@@ -29,15 +29,15 @@ func (c *Container) Start(log *zerolog.Logger) error {
 	}
 
 	// FIXME: 'prestart' hook is deprecated and appears to break 'docker run'??
-	// if err := c.ExecHooks("prestart", log); err != nil {
-	// 	// TODO: run DELETE tasks here, then...
-	// 	if err := c.ExecHooks("poststop", log); err != nil {
-	// 		log.Warn().Err(err).Msg("failed to execute poststop hooks")
-	// 		fmt.Println("WARNING: failed to execute poststop hooks")
-	// 	}
-	//
-	// 	return fmt.Errorf("failed to run prestart hooks: %w", err)
-	// }
+	if err := c.ExecHooks("prestart", log); err != nil {
+		// TODO: run DELETE tasks here, then...
+		if err := c.ExecHooks("poststop", log); err != nil {
+			log.Warn().Err(err).Msg("failed to execute poststop hooks")
+			fmt.Println("WARNING: failed to execute poststop hooks")
+		}
+
+		log.Warn().Err(err).Msg("failed to execute prestart hooks")
+	}
 
 	if _, err := conn.Write([]byte("start")); err != nil {
 		return fmt.Errorf("send start over ipc: %w", err)
