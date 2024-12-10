@@ -68,7 +68,7 @@ jobs:
       - name: chmod brownie
         run: |
           chmod 755 ./brownie
-          mv ./brownie /usr/bin/brownie
+          sudo mv ./brownie /usr/bin/brownie
 
       - name: run oci tests
         working-directory: test/runtime-tools
