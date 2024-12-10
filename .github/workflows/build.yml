@@ -66,12 +66,14 @@ jobs:
           path: .
 
       - name: chmod brownie
-        run: chmod 755 ./brownie
+        run: |
+          chmod 755 ./brownie
+          mv ./brownie /usr/bin/brownie
 
       - name: run oci tests
         working-directory: test/runtime-tools
         run: |
-          sudo RUNTIME=../../brownie ../oci-integration.sh
+          sudo RUNTIME=/usr/bin/brownie ../oci-integration.sh
 
       - name: set docker daemon
         run: |
